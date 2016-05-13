@@ -18,6 +18,8 @@ class Mailbox {
 	protected $serverEncoding;
 	protected $attachmentsDir;
 	protected $expungeOnDisconnect = true;
+	protected $sslSecureConnection = false;
+	protected $sslTimeout = 10;
 	private $imapStream;
 
 	/**
@@ -55,6 +57,29 @@ class Mailbox {
 	}
 
 	/**
+	 * Set custom timeout time (in seconds)
+	 * @param int $openTimeout
+	 * @param int $readTimeout
+	 * @param int $writeTimeout
+	 * @param int $closeTimeout
+	 */
+	public function setTimeout($openTimeout = 10, $readTimeout = 10, $writeTimeout = 10, $closeTimeout = 10) {
+		imap_timeout( IMAP_OPENTIMEOUT, $openTimeout);
+		imap_timeout( IMAP_READTIMEOUT, $readTimeout);
+		imap_timeout( IMAP_WRITETIMEOUT, $writeTimeout);
+		imap_timeout( IMAP_CLOSETIMEOUT, $closeTimeout);
+	}
+
+	/**
+	 * Set timeout (in seconds) for a ssl connection
+	 * @param bool $secureConnection
+	 * @param int $timeout
+	 */
+	public function setSslOptions($secureConnection = true, $timeout = 10) {
+		$this->sslSecureConnection = $secureConnection;
+		$this->sslTimeout = $timeout;
+	}
+	/**
 	 * Get IMAP mailbox connection stream
 	 * @param bool $forceConnection Initialize connection if it's not initialized
 	 * @return null|resource
@@ -73,7 +98,40 @@ class Mailbox {
 	}
 
 	protected function initImapStream() {
-		$imapStream = @imap_open($this->imapPath, $this->imapLogin, $this->imapPassword, $this->imapOptions, $this->imapRetriesNum, $this->imapParams);
+		if ($this->sslSecureConnection) {
+			$parentId =  getmypid();
+			$pid = pcntl_fork();
+			if ( $pid == -1 ) {
+				// Fork failed
+				exit(1);
+			} else if ( $pid === 0) {
+				// I am  the child
+				// Try to connect to imap
+				$imapStream = @imap_open($this->imapPath, $this->imapLogin, $this->imapPassword, $this->imapOptions, $this->imapRetriesNum, $this->imapParams);
+				// Tell the parent that I have connected
+				posix_kill($parentId, SIGUSR1);
+
+			} else {
+				// I am the father
+				pcntl_signal(SIGUSR1, function($signo) {
+					// Signal received from the son. Everything goes ok. Wait until the son dies.
+					pcntl_wait($status);
+					exit(0);
+
+				});
+
+				sleep($this->sslTimeout);
+
+				// The son is taking too much time to connect to imap. kill.
+				posix_kill($pid,9);
+
+				// Wait until the son is dead in order to avoid zombies
+				pcntl_wait($status);
+				exit(0);
+			}
+		} else {
+			$imapStream = @imap_open($this->imapPath, $this->imapLogin, $this->imapPassword, $this->imapOptions, $this->imapRetriesNum, $this->imapParams);
+		}
 		if(!$imapStream) {
 			throw new Exception('Connection error: ' . imap_last_error());
 		}
