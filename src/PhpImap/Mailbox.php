@@ -120,7 +120,11 @@ class Mailbox {
 
 				});
 
-				sleep($this->sslTimeout);
+				// Check if the signal has been emitted
+				for($i=0;$i<$this->sslTimeout;$i++) {
+					sleep(1);
+					pcntl_signal_dispatch();
+				}
 
 				// The son is taking too much time to connect to imap. kill.
 				posix_kill($pid,9);
