@@ -19,7 +19,7 @@ class Mailbox {
 	protected $attachmentsDir;
 	protected $expungeOnDisconnect = true;
 	protected $sslSecureConnection = false;
-	protected $sslTimeout = 10;
+	protected $sslTimeout = 300;
 	private $imapStream;
 
 	/**
@@ -75,7 +75,7 @@ class Mailbox {
 	 * @param bool $secureConnection
 	 * @param int $timeout
 	 */
-	public function setSslOptions($secureConnection = true, $timeout = 10) {
+	public function setSslOptions($secureConnection = true, $timeout = 300) {
 		$this->sslSecureConnection = $secureConnection;
 		$this->sslTimeout = $timeout;
 	}
